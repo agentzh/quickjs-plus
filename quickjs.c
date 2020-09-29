@@ -66,18 +66,6 @@
 #define CONFIG_PRINTF_RNDN
 #endif
 
-/* define to include Atomics.* operations which depend on the OS
-   threads */
-#if !defined(EMSCRIPTEN) && !defined(_MSC_VER)
-#define CONFIG_ATOMICS
-#endif
-
-#if !defined(EMSCRIPTEN) && !defined(_MSC_VER)
-/* enable stack limitation */
-#define CONFIG_STACK_CHECK
-#endif
-
-
 /* dump object free */
 //#define DUMP_FREE
 //#define DUMP_CLOSURE
