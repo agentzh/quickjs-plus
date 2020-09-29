@@ -3,7 +3,7 @@
 
 set -e
 
-version=`cat VERSION`
+version=`cat VERSION.txt`
 
 if [ "$1" = "-h" ] ; then
     echo "release.sh [all]"
@@ -90,7 +90,7 @@ outdir="/tmp/${d}"
 rm -rf $outdir
 mkdir -p $outdir $outdir/doc $outdir/tests $outdir/examples
 
-cp Makefile VERSION TODO Changelog readme.txt release.sh unicode_download.sh \
+cp Makefile VERSION.txt TODO Changelog readme.txt release.sh unicode_download.sh \
    qjs.c qjsc.c qjscalc.js repl.js \
    quickjs.c quickjs.h quickjs-atom.h \
    quickjs-libc.c quickjs-libc.h quickjs-opcode.h \
