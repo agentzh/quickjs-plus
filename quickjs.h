@@ -768,6 +768,8 @@ JSValue JS_GetPrototype(JSContext *ctx, JSValueConst val);
 
 int JS_GetOwnPropertyNames(JSContext *ctx, JSPropertyEnum **ptab,
                            uint32_t *plen, JSValueConst obj, int flags);
+int JS_GetOwnPropertyCount(JSContext *ctx, JSValueConst obj);
+int JS_GetOwnPropertyCountUnchecked(JSValueConst obj);
 int JS_GetOwnProperty(JSContext *ctx, JSPropertyDescriptor *desc,
                       JSValueConst obj, JSAtom prop);
 
