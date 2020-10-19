@@ -273,6 +273,8 @@ struct JSRuntime {
     BOOL in_out_of_memory : 8;
     /* and likewise if inside Error.prepareStackTrace() */
     BOOL in_prepare_stack_trace : 8;
+    /* and for any per-context global access getter */
+    BOOL in_global_access_getter : 8;
 
     struct JSStackFrame *current_stack_frame;
 
@@ -311,6 +313,7 @@ typedef struct JSRuntimeInternalThreadState {
     const uint8_t *stack_top;
     JSValue current_exception;
     BOOL in_prepare_stack_trace : 8;
+    BOOL in_global_access_getter : 8;
     struct JSStackFrame *current_stack_frame;
     struct list_head job_list;
 } JSRuntimeInternalThreadState;
@@ -443,6 +446,8 @@ struct JSContext {
 
     JSValue global_obj; /* global object */
     JSValue global_var_obj; /* contains the global let/const definitions */
+    JSGlobalAccessFunctions *global_access_funcs;
+    JSGlobalAccessFunctions global_access_funcs_storage;
 
     uint64_t random_state;
 #ifdef CONFIG_BIGNUM
@@ -1773,12 +1778,14 @@ void JS_Suspend(JSRuntime *rt, JSRuntimeThreadState *state)
     s->stack_top = rt->stack_top;
     s->current_exception = rt->current_exception;
     s->in_prepare_stack_trace = rt->in_prepare_stack_trace;
+    s->in_global_access_getter = rt->in_global_access_getter;
     s->current_stack_frame = rt->current_stack_frame;
     memcpy(&s->job_list, &rt->job_list, sizeof(rt->job_list));
 
     rt->stack_top = NULL;
     rt->current_exception = JS_NULL;
     rt->in_prepare_stack_trace = FALSE;
+    rt->in_global_access_getter = FALSE;
     rt->current_stack_frame = NULL;
     init_list_head(&rt->job_list);
 }
@@ -1791,6 +1798,7 @@ void JS_Resume(JSRuntime *rt, const JSRuntimeThreadState *state)
     rt->stack_top = s->stack_top;
     rt->current_exception = s->current_exception;
     rt->in_prepare_stack_trace = s->in_prepare_stack_trace;
+    rt->in_global_access_getter = s->in_global_access_getter;
     rt->current_stack_frame = s->current_stack_frame;
     list_splice(&s->job_list, &rt->job_list);
 }
@@ -2374,6 +2382,19 @@ void JS_FreeContext(JSContext *ctx)
 JSRuntime *JS_GetRuntime(JSContext *ctx)
 {
     return ctx->rt;
+}
+
+void JS_SetGlobalAccessFunctions(JSContext *ctx,
+                                 const JSGlobalAccessFunctions *af)
+{
+    if (af != NULL) {
+        memcpy(&ctx->global_access_funcs_storage, af, sizeof(*af));
+        ctx->global_access_funcs = &ctx->global_access_funcs_storage;
+    } else {
+        ctx->global_access_funcs = NULL;
+        memset(&ctx->global_access_funcs_storage, 0,
+               sizeof(ctx->global_access_funcs_storage));
+    }
 }
 
 void JS_SetMaxStackSize(JSRuntime *rt, size_t stack_size)
@@ -9581,6 +9602,8 @@ static JSValue JS_GetGlobalVar(JSContext *ctx, JSAtom prop,
     JSObject *p;
     JSShapeProperty *prs;
     JSProperty *pr;
+    JSValue res;
+    JSGlobalAccessFunctions *af;
 
     /* no exotic behavior is possible in global_var_obj */
     p = JS_VALUE_GET_OBJ(ctx->global_var_obj);
@@ -9591,8 +9614,37 @@ static JSValue JS_GetGlobalVar(JSContext *ctx, JSAtom prop,
             return JS_ThrowReferenceErrorUninitialized(ctx, prs->atom);
         return JS_DupValue(ctx, pr->u.value);
     }
-    return JS_GetPropertyInternal(ctx, ctx->global_obj, prop,
+    res = JS_GetPropertyInternal(ctx, ctx->global_obj, prop,
                                  ctx->global_obj, throw_ref_error);
+
+    if (unlikely((af = ctx->global_access_funcs) != NULL)) {
+        JSRuntime *rt = ctx->rt;
+
+        if (rt->in_global_access_getter)
+            return res;
+
+        if (JS_IsException(res) || (!throw_ref_error && JS_IsUndefined(res))) {
+            JSValue saved_exception, replacement_res;
+
+            rt->in_global_access_getter = TRUE;
+
+            saved_exception = rt->current_exception;
+            rt->current_exception = JS_NULL;
+
+            replacement_res = af->get(ctx, prop, af->opaque);
+            if (!JS_IsUndefined(replacement_res) && !JS_IsException(replacement_res)) {
+                res = replacement_res;
+                JS_FreeValue(ctx, saved_exception);
+            } else {
+                JS_FreeValue(ctx, rt->current_exception);
+                rt->current_exception = saved_exception;
+            }
+
+            rt->in_global_access_getter = FALSE;
+        }
+    }
+
+    return res;
 }
 
 /* construct a reference to a global variable */
