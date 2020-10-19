@@ -446,6 +446,8 @@ struct JSContext {
 
     JSValue global_obj; /* global object */
     JSValue global_var_obj; /* contains the global let/const definitions */
+    JSGlobalAccessFunctions *global_access_funcs;
+    JSGlobalAccessFunctions global_access_funcs_storage;
 
     uint64_t random_state;
 #ifdef CONFIG_BIGNUM
@@ -2391,6 +2393,19 @@ void JS_FreeContext(JSContext *ctx)
 JSRuntime *JS_GetRuntime(JSContext *ctx)
 {
     return ctx->rt;
+}
+
+void JS_SetGlobalAccessFunctions(JSContext *ctx,
+                                 const JSGlobalAccessFunctions *af)
+{
+    if (af != NULL) {
+        memcpy(&ctx->global_access_funcs_storage, af, sizeof(*af));
+        ctx->global_access_funcs = &ctx->global_access_funcs_storage;
+    } else {
+        ctx->global_access_funcs = NULL;
+        memset(&ctx->global_access_funcs_storage, 0,
+               sizeof(ctx->global_access_funcs_storage));
+    }
 }
 
 static void update_stack_limit(JSRuntime *rt)
@@ -9658,6 +9673,8 @@ static JSValue JS_GetGlobalVar(JSContext *ctx, JSAtom prop,
     JSObject *p;
     JSShapeProperty *prs;
     JSProperty *pr;
+    JSValue res;
+    JSGlobalAccessFunctions *af;
 
     /* no exotic behavior is possible in global_var_obj */
     p = JS_VALUE_GET_OBJ(ctx->global_var_obj);
@@ -9668,8 +9685,30 @@ static JSValue JS_GetGlobalVar(JSContext *ctx, JSAtom prop,
             return JS_ThrowReferenceErrorUninitialized(ctx, prs->atom);
         return JS_DupValue(ctx, pr->u.value);
     }
-    return JS_GetPropertyInternal(ctx, ctx->global_obj, prop,
+    res = JS_GetPropertyInternal(ctx, ctx->global_obj, prop,
                                  ctx->global_obj, throw_ref_error);
+
+    if (unlikely((af = ctx->global_access_funcs) != NULL)) {
+        JSRuntime *rt = ctx->rt;
+
+        if (JS_IsException(res) || (!throw_ref_error && JS_IsUndefined(res))) {
+            JSValue saved_exception, replacement_res;
+
+            saved_exception = rt->current_exception;
+            rt->current_exception = JS_NULL;
+
+            replacement_res = af->get(ctx, prop, af->opaque);
+            if (!JS_IsUndefined(replacement_res) && !JS_IsException(replacement_res)) {
+                res = replacement_res;
+                JS_FreeValue(ctx, saved_exception);
+            } else {
+                JS_FreeValue(ctx, rt->current_exception);
+                rt->current_exception = saved_exception;
+            }
+        }
+    }
+
+    return res;
 }
 
 /* construct a reference to a global variable */
