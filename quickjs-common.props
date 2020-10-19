@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>CONFIG_VERSION=&quot;2020-09-06&quot;;CONFIG_BIGNUM;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4018;4132;4146;4200;4214;4245;4267;4334;4389;4456;4457;4701;4703;4706;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClInclude Include="quickjs.h" />
+    <ClInclude Include="quickjs-atom.h" />
+    <ClInclude Include="quickjs-opcode.h" />
+    <ClInclude Include="libregexp.h" />
+    <ClInclude Include="libregexp-opcode.h" />
+    <ClInclude Include="libunicode.h" />
+    <ClInclude Include="libunicode-table.h" />
+    <ClInclude Include="cutils.h" />
+    <ClInclude Include="list.h" />
+    <ClInclude Include="libbf.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="quickjs.c" />
+    <ClCompile Include="libregexp.c" />
+    <ClCompile Include="libunicode.c" />
+    <ClCompile Include="cutils.c" />
+    <ClCompile Include="libbf.c" />
+  </ItemGroup>
+
+</Project>
