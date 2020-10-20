@@ -12,7 +12,6 @@ qjs_sources = [
   'libregexp.c',
   'libunicode.c',
   'cutils.c',
-  'quickjs-libc.c',
   'libbf.c',
 ]
 
