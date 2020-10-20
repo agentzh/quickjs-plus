@@ -2189,15 +2189,13 @@ static inline void set_value(JSContext *ctx, JSValue *pval, JSValue new_val)
 
 void JS_SetClassProto(JSContext *ctx, JSClassID class_id, JSValue obj)
 {
-    JSRuntime *rt = ctx->rt;
-    assert(class_id < rt->class_count);
+    assert(class_id < ctx->rt->class_count);
     set_value(ctx, &ctx->class_proto[class_id], obj);
 }
 
 JSValue JS_GetClassProto(JSContext *ctx, JSClassID class_id)
 {
-    JSRuntime *rt = ctx->rt;
-    assert(class_id < rt->class_count);
+    assert(class_id < ctx->rt->class_count);
     return JS_DupValue(ctx, ctx->class_proto[class_id]);
 }
 
@@ -7398,11 +7396,16 @@ static int num_keys_cmp(const void *p1, const void *p2, void *opaque)
     JSAtom atom1 = ((const JSPropertyEnum *)p1)->atom;
     JSAtom atom2 = ((const JSPropertyEnum *)p2)->atom;
     uint32_t v1, v2;
+#ifndef NDEBUG
     BOOL atom1_is_integer, atom2_is_integer;
 
     atom1_is_integer = JS_AtomIsArrayIndex(ctx, &v1, atom1);
     atom2_is_integer = JS_AtomIsArrayIndex(ctx, &v2, atom2);
     assert(atom1_is_integer && atom2_is_integer);
+#else
+    JS_AtomIsArrayIndex(ctx, &v1, atom1);
+    JS_AtomIsArrayIndex(ctx, &v2, atom2);
+#endif
     if (v1 < v2)
         return -1;
     else if (v1 == v2)
@@ -12287,8 +12290,10 @@ static JSValue JS_CompactBigInt1(JSContext *ctx, JSValue val,
         JS_FreeValue(ctx, val);
         return JS_NewInt64(ctx, v);
     } else if (a->expn == BF_EXP_ZERO && a->sign) {
+#ifndef NDEBUG
         JSBigFloat *p = JS_VALUE_GET_PTR(val);
         assert(p->header.ref_count == 1);
+#endif
         a->sign = 0;
     }
     return val;
@@ -33622,11 +33627,12 @@ JSValue JS_EvalThis(JSContext *ctx, JSValueConst this_obj,
                     const char *input, size_t input_len,
                     const char *filename, int eval_flags)
 {
-    int eval_type = eval_flags & JS_EVAL_TYPE_MASK;
     JSValue ret;
-
+#ifndef NDEBUG
+    int eval_type = eval_flags & JS_EVAL_TYPE_MASK;
     assert(eval_type == JS_EVAL_TYPE_GLOBAL ||
            eval_type == JS_EVAL_TYPE_MODULE);
+#endif
     ret = JS_EvalInternal(ctx, this_obj, input, input_len, filename,
                           eval_flags, -1);
     return ret;
@@ -45602,13 +45608,17 @@ static void map_decref_record(JSRuntime *rt, JSMapRecord *mr)
 static void reset_weak_ref(JSRuntime *rt, JSObject *p)
 {
     JSMapRecord *mr, *mr_next;
+#ifndef NDEBUG
     JSMapState *s;
+#endif
     
     /* first pass to remove the records from the WeakMap/WeakSet
        lists */
     for(mr = p->first_weak_ref; mr != NULL; mr = mr->next_weak_ref) {
+#ifndef NDEBUG
         s = mr->map;
         assert(s->is_weak);
+#endif
         assert(!mr->empty); /* no iterator on WeakMap/WeakSet */
         list_del(&mr->hash_link);
         list_del(&mr->link);
