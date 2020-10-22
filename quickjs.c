@@ -299,8 +299,6 @@ struct JSRuntime {
     BOOL in_out_of_memory : 8;
     /* and likewise if inside Error.prepareStackTrace() */
     BOOL in_prepare_stack_trace : 8;
-    /* and for any per-context global access getter */
-    BOOL in_global_access_getter : 8;
 
     struct JSStackFrame *current_stack_frame;
 
@@ -339,7 +337,6 @@ typedef struct JSRuntimeInternalThreadState {
     const uint8_t *stack_top;
     JSValue current_exception;
     BOOL in_prepare_stack_trace : 8;
-    BOOL in_global_access_getter : 8;
     struct JSStackFrame *current_stack_frame;
     struct list_head job_list;
 } JSRuntimeInternalThreadState;
@@ -1804,14 +1801,12 @@ void JS_Suspend(JSRuntime *rt, JSRuntimeThreadState *state)
     s->stack_top = rt->stack_top;
     s->current_exception = rt->current_exception;
     s->in_prepare_stack_trace = rt->in_prepare_stack_trace;
-    s->in_global_access_getter = rt->in_global_access_getter;
     s->current_stack_frame = rt->current_stack_frame;
     memcpy(&s->job_list, &rt->job_list, sizeof(rt->job_list));
 
     rt->stack_top = NULL;
     rt->current_exception = JS_NULL;
     rt->in_prepare_stack_trace = FALSE;
-    rt->in_global_access_getter = FALSE;
     rt->current_stack_frame = NULL;
     init_list_head(&rt->job_list);
 }
@@ -1824,7 +1819,6 @@ void JS_Resume(JSRuntime *rt, const JSRuntimeThreadState *state)
     rt->stack_top = s->stack_top;
     rt->current_exception = s->current_exception;
     rt->in_prepare_stack_trace = s->in_prepare_stack_trace;
-    rt->in_global_access_getter = s->in_global_access_getter;
     rt->current_stack_frame = s->current_stack_frame;
     list_splice(&s->job_list, &rt->job_list);
 }
@@ -9649,13 +9643,8 @@ static JSValue JS_GetGlobalVar(JSContext *ctx, JSAtom prop,
     if (unlikely((af = ctx->global_access_funcs) != NULL)) {
         JSRuntime *rt = ctx->rt;
 
-        if (rt->in_global_access_getter)
-            return res;
-
         if (JS_IsException(res) || (!throw_ref_error && JS_IsUndefined(res))) {
             JSValue saved_exception, replacement_res;
-
-            rt->in_global_access_getter = TRUE;
 
             saved_exception = rt->current_exception;
             rt->current_exception = JS_NULL;
@@ -9668,8 +9657,6 @@ static JSValue JS_GetGlobalVar(JSContext *ctx, JSAtom prop,
                 JS_FreeValue(ctx, rt->current_exception);
                 rt->current_exception = saved_exception;
             }
-
-            rt->in_global_access_getter = FALSE;
         }
     }
 
