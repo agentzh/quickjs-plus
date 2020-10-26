@@ -72,10 +72,10 @@
 //#define CONFIG_ATOMICS
 //#endif
 
-#if !defined(EMSCRIPTEN) && !defined(_MSC_VER)
-/* enable stack limitation */
-#define CONFIG_STACK_CHECK
-#endif
+//#if !defined(EMSCRIPTEN) && !defined(_MSC_VER)
+///* enable stack limitation */
+//#define CONFIG_STACK_CHECK
+//#endif
 
 
 /* dump object free */
