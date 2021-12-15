@@ -7,6 +7,8 @@ cc = meson.get_compiler('c')
 have_msvc = cc.get_id() == 'msvc'
 have_emscripten = cc.get_define('EMSCRIPTEN') != ''
 
+threads_dep = dependency('threads')
+dl_dep = cc.find_library('dl', required: false)
 m_dep = cc.find_library('m', required: false)
 
 headers = [
@@ -65,10 +67,14 @@ configure_file(
   output: 'config.h',
   configuration: cdata,
 )
-add_project_arguments(have_msvc ? '/FI' : '-include', 'config.h', language: 'c')
+add_project_arguments(
+  have_msvc ? '/FI' : '-include', meson.current_build_dir() / 'config.h',
+  '-D_GNU_SOURCE=1',
+  language: 'c',
+)
 
 quickjs = library('quickjs', sources,
-  dependencies: m_dep,
+  dependencies: [threads_dep, dl_dep, m_dep],
   install: true,
 )
 quickjs_dep = declare_dependency(
