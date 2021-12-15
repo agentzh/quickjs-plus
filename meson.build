@@ -74,7 +74,7 @@ add_project_arguments(
 )
 
 quickjs = library('quickjs', sources,
-  dependencies: [m_dep, threads_dep, dl_dep],
+  dependencies: [threads_dep, dl_dep, m_dep],
   install: true,
 )
 quickjs_dep = declare_dependency(
