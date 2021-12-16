@@ -83,10 +83,9 @@ quickjs_dep = declare_dependency(
 )
 
 pkg = import('pkgconfig')
-pkg.generate(
+pkg.generate(quickjs,
   name: 'quickjs',
   description: 'Small and embeddable JavaScript engine',
   url: 'https://bellard.org/quickjs/',
   subdirs: ['quickjs'],
-  libraries: [quickjs],
 )
