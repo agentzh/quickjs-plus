@@ -326,7 +326,7 @@ struct JSRuntime {
 };
 
 typedef struct JSRuntimeInternalThreadState {
-    const uint8_t *stack_top;
+    uintptr_t stack_top;
     JSValue current_exception;
     BOOL in_prepare_stack_trace : 8;
     struct JSStackFrame *current_stack_frame;
@@ -1812,7 +1812,7 @@ void JS_Suspend(JSRuntime *rt, JSRuntimeThreadState *state)
     s->current_stack_frame = rt->current_stack_frame;
     memcpy(&s->job_list, &rt->job_list, sizeof(rt->job_list));
 
-    rt->stack_top = NULL;
+    rt->stack_top = 0;
     rt->current_exception = JS_NULL;
     rt->in_prepare_stack_trace = FALSE;
     rt->current_stack_frame = NULL;
@@ -1833,7 +1833,7 @@ void JS_Resume(JSRuntime *rt, const JSRuntimeThreadState *state)
 
 void JS_Leave(JSRuntime *rt)
 {
-    rt->stack_top = NULL;
+    rt->stack_top = 0;
 }
 
 void JS_SetMemoryLimit(JSRuntime *rt, size_t limit)
