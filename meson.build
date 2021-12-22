@@ -89,3 +89,5 @@ pkg.generate(quickjs,
   url: 'https://bellard.org/quickjs/',
   subdirs: ['quickjs'],
 )
+
+meson.override_dependency('quickjs', quickjs_dep)
