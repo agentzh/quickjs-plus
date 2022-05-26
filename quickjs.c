@@ -34331,6 +34331,31 @@ static void JS_WriteString(BCWriterState *s, JSString *p)
     }
 }
 
+static int JS_WriteRegExpByteSwapped(BCWriterState *s, JSValueConst obj)
+{
+    JSString *re_bytecode;
+    JSValue swapped_val;
+    JSString *swapped;
+
+    re_bytecode = JS_VALUE_GET_STRING(obj);
+
+    swapped_val = js_new_string8(s->ctx, re_bytecode->u.str8, re_bytecode->len);
+    if (JS_IsException(swapped_val))
+        goto fail;
+    swapped = JS_VALUE_GET_STRING(swapped_val);
+
+    lre_byte_swap(swapped->u.str8, swapped->len);
+
+    bc_put_u8(s, BC_TAG_STRING);
+    JS_WriteString(s, swapped);
+
+    JS_FreeValue(s->ctx, swapped_val);
+
+    return 0;
+ fail:
+    return -1;
+}
+
 #ifdef CONFIG_BIGNUM
 static int JS_WriteBigNum(BCWriterState *s, JSValueConst obj)
 {
@@ -34475,6 +34500,7 @@ static int JS_WriteFunctionTag(BCWriterState *s, JSValueConst obj)
     JSFunctionBytecode *b = JS_VALUE_GET_PTR(obj);
     uint32_t flags;
     int idx, i;
+    uint8_t *idx_needs_regexp_bswap = NULL;
     
     bc_put_u8(s, BC_TAG_FUNCTION_BYTECODE);
     flags = idx = 0;
@@ -34545,12 +34571,63 @@ static int JS_WriteFunctionTag(BCWriterState *s, JSValueConst obj)
         dbuf_put(&s->dbuf, b->debug.pc2line_buf, b->debug.pc2line_len);
     }
     
-    for(i = 0; i < b->cpool_count; i++) {
-        if (JS_WriteObjectRec(s, b->cpool[i]))
-            goto fail;
+    if (s->byte_swap) {
+        uint8_t *bc_buf = b->byte_code_buf;
+        int bc_len = b->byte_code_len;
+        int pos, op;
+        uint32_t prev_push_const_idx = 0;
+
+        pos = 0;
+        while (pos < bc_len) {
+            op = bc_buf[pos];
+
+            switch(op) {
+            case OP_push_const:
+                prev_push_const_idx = get_u32(bc_buf + pos + 1);
+                break;
+            case OP_push_const8:
+                prev_push_const_idx = get_u8(bc_buf + pos + 1);
+                break;
+            case OP_regexp:
+                if (!idx_needs_regexp_bswap) {
+                    idx_needs_regexp_bswap = js_malloc(s->ctx, b->cpool_count);
+                    if (!idx_needs_regexp_bswap)
+                        goto fail;
+                    memset(idx_needs_regexp_bswap, 0, b->cpool_count);
+                }
+                idx_needs_regexp_bswap[prev_push_const_idx] = TRUE;
+            default:
+                break;
+            }
+
+            pos += short_opcode_info(op).size;
+        }
+
+        if (!idx_needs_regexp_bswap)
+            goto no_bswap_needed;
+
+        for(i = 0; i < b->cpool_count; i++) {
+            if (idx_needs_regexp_bswap[i]) {
+                if (JS_WriteRegExpByteSwapped(s, b->cpool[i]))
+                    goto fail;
+            } else {
+                if (JS_WriteObjectRec(s, b->cpool[i]))
+                    goto fail;
+            }
+        }
+
+        js_free(s->ctx, idx_needs_regexp_bswap);
+    } else {
+ no_bswap_needed:
+        for(i = 0; i < b->cpool_count; i++) {
+            if (JS_WriteObjectRec(s, b->cpool[i]))
+                goto fail;
+        }
     }
+
     return 0;
  fail:
+    js_free(s->ctx, idx_needs_regexp_bswap);
     return -1;
 }
 
